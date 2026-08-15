@@ -1017,9 +1017,6 @@
         }
 
         function renderCharts() {
-            if (typeof ChartDataLabels !== 'undefined') {
-                Chart.register(ChartDataLabels);
-            }
             Chart.defaults.color = '#94a3b8';
             Chart.defaults.font.family = "'Inter', sans-serif";
             
@@ -1036,10 +1033,37 @@
                 });
             });
 
+            // Native Bar Data Labels Plugin (Always visible above bars)
+            const customBarLabelsPlugin = {
+                id: 'customBarLabels',
+                afterDatasetsDraw(chart) {
+                    const { ctx } = chart;
+                    chart.data.datasets.forEach((dataset, datasetIndex) => {
+                        const meta = chart.getDatasetMeta(datasetIndex);
+                        if (meta.hidden) return;
+                        meta.data.forEach((element, index) => {
+                            const val = dataset.data[index];
+                            if (val !== null && val !== undefined && val > 0) {
+                                ctx.save();
+                                ctx.fillStyle = '#ffffff';
+                                ctx.font = '600 11px Inter, sans-serif';
+                                ctx.textAlign = 'center';
+                                ctx.textBaseline = 'bottom';
+                                ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
+                                ctx.shadowBlur = 3;
+                                ctx.fillText(val, element.x, element.y - 3);
+                                ctx.restore();
+                            }
+                        });
+                    });
+                }
+            };
+
             if(charts.bar) charts.bar.destroy();
             const ctxBar = document.getElementById('barChart').getContext('2d');
             charts.bar = new Chart(ctxBar, {
                 type: 'bar',
+                plugins: [customBarLabelsPlugin],
                 data: {
                     labels: months,
                     datasets: [
@@ -1060,17 +1084,7 @@
                         x: { grid: { display: false } }
                     },
                     plugins: { 
-                        legend: { position: 'top' },
-                        datalabels: {
-                            anchor: 'end',
-                            align: 'top',
-                            offset: 2,
-                            color: '#f0f0f0',
-                            font: { weight: '600', size: 11 },
-                            formatter: function(value) {
-                                return value > 0 ? value : '';
-                            }
-                        }
+                        legend: { position: 'top' }
                     }
                 }
             });
@@ -1084,10 +1098,41 @@
             const locVals = Object.values(locData);
             const totalLoc = locVals.reduce((a,b)=>a+b, 0) || 1; // prevent div/0
 
+            // Native Doughnut Data Labels Plugin (Always visible on slices)
+            const customDoughnutLabelsPlugin = {
+                id: 'customDoughnutLabels',
+                afterDraw(chart) {
+                    const { ctx } = chart;
+                    const meta = chart.getDatasetMeta(0);
+                    if (!meta || !meta.data || !meta.data.length) return;
+                    const dataset = chart.data.datasets[0];
+                    const total = dataset.data.reduce((a, b) => a + b, 0);
+                    if (!total) return;
+
+                    meta.data.forEach((element, index) => {
+                        const val = dataset.data[index];
+                        if (val && val > 0) {
+                            const perc = Math.round((val / total) * 100);
+                            const pos = element.tooltipPosition();
+                            ctx.save();
+                            ctx.fillStyle = '#ffffff';
+                            ctx.font = 'bold 12px Inter, sans-serif';
+                            ctx.textAlign = 'center';
+                            ctx.textBaseline = 'middle';
+                            ctx.shadowColor = 'rgba(0, 0, 0, 0.9)';
+                            ctx.shadowBlur = 4;
+                            ctx.fillText(`${val} (${perc}%)`, pos.x, pos.y);
+                            ctx.restore();
+                        }
+                    });
+                }
+            };
+
             if(charts.doughnut) charts.doughnut.destroy();
             const ctxDough = document.getElementById('doughnutChart').getContext('2d');
             charts.doughnut = new Chart(ctxDough, {
                 type: 'doughnut',
+                plugins: [customDoughnutLabelsPlugin],
                 data: {
                     labels: locLabels,
                     datasets: [{
@@ -1100,7 +1145,7 @@
                 },
                 options: {
                     responsive: true, maintainAspectRatio: false,
-                    cutout: '62%',
+                    cutout: '60%',
                     plugins: {
                         legend: { 
                             position: 'right',
@@ -1126,16 +1171,6 @@
                                     return [];
                                 }
                             }
-                        },
-                        datalabels: {
-                            color: '#ffffff',
-                            font: { weight: 'bold', size: 12 },
-                            formatter: function(value) {
-                                if (!value || value <= 0) return '';
-                                const perc = ((value / totalLoc) * 100).toFixed(0);
-                                return `${value}\n(${perc}%)`;
-                            },
-                            textAlign: 'center'
                         },
                         tooltip: {
                             callbacks: {
